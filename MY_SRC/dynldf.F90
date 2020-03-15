@@ -18,6 +18,7 @@ MODULE dynldf
    USE ldfdyn         ! lateral diffusion: eddy viscosity coef.
    USE dynldf_lap_blp ! lateral mixing   (dyn_ldf_lap & dyn_ldf_blp routines)
    USE dynldf_iso     ! lateral mixing                 (dyn_ldf_iso routine )
+   USE dynldf_keb     ! KE backscatter  (dyn_ldf_keb routine)
    USE trd_oce        ! trends: ocean variables
    USE trddyn         ! trend manager: dynamics   (trd_dyn      routine)
    !
@@ -95,7 +96,7 @@ CONTAINS
       !
       END SELECT
       !
-      IF ( ln_kebs )       ;   CALL dyn_ldf_keb( kt, ub, vb, ua, va, sgs_ke ) ! KE backscatter 
+      IF ( ln_kebs ) CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter 
       !
       IF( l_trddyn .OR. ln_sgske ) THEN                        ! save the horizontal diffusive trends for further diagnostics
          ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)

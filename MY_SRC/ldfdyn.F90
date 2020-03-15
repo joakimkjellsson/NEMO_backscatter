@@ -388,7 +388,7 @@ CONTAINS
       INTEGER  ::   ji, jj, jk   ! dummy loop indices
       REAL(wp) ::   zu2pv2_ij_p1, zu2pv2_ij, zu2pv2_ij_m1, zemax   ! local scalar (option 31)
       REAL(wp) ::   zcmsmag, zstabf_lo, zstabf_up, zdelta, zdb     ! local scalar (option 32)
-      REAL(wp) ::   zsgske_ij                                      ! local scalar (ln_kebs = T)
+      REAL(wp) ::   zckeb, zsgske_ij                               ! local scalar (ln_kebs = T)
       !!----------------------------------------------------------------------
       !
       IF( ln_timing )   CALL timing_start('ldf_dyn')
@@ -542,6 +542,7 @@ CONTAINS
           ! where e is the sub-grid scale KE and c is a coffiecient [0,1]
           ! Viscosity is negative, i.e. adding KE to resolved flow
           !
+          zckeb = 0.1 
           DO jk = 1, jpkm1
              !
              DO jj = 2, jpjm1                                ! T-point value
@@ -566,6 +567,9 @@ CONTAINS
              END DO
              !
           END DO
+          !
+          CALL lbc_lnk_multi( 'ldfdyn', bhmt, 'T', 1. , bhmf, 'F', 1. )
+          !
           ! Put 
           CALL iom_put( "bhmt_2d", bhmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
           CALL iom_put( "bhmf_2d", bhmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
