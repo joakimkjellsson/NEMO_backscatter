@@ -41,7 +41,10 @@
          <!-- t-eddy viscosity coefficients (ldfdyn) -->
 	 <field id="ahmt_2d"      long_name=" surface t-eddy viscosity coefficient"   unit="m2/s or m4/s" />
 	 <field id="ahmt_3d"      long_name=" 3D      t-eddy viscosity coefficient"   unit="m2/s or m4/s"                           grid_ref="grid_T_3D"/>
-
+         <!-- backscatter viscosity coefficients (ldfdyn) -->
+         <field id="bhmt_2d"      long_name=" surface backscatter viscosity coefficient"   unit="m2/s" />
+         <field id="bhmt_3d"      long_name=" 3D      backscatter viscosity coefficient"   unit="m2/s"                              grid_ref="grid_T_3D"/>
+         
          <field id="sst"          long_name="sea surface temperature"             standard_name="sea_surface_temperature"             unit="degC"     />
          <field id="sst2"         long_name="square of sea surface temperature"   standard_name="square_of_sea_surface_temperature"   unit="degC2"     > sst * sst </field >
          <field id="sstmax"       long_name="max of sea surface temperature"   field_ref="sst"   operation="maximum"                                  />
@@ -750,6 +753,9 @@
        <field id="ketrd_zad"     long_name="ke-trend: vertical  advection"                    unit="W/s^3"                        />
        <field id="ketrd_udx"     long_name="ke-trend: U.dx[U]"                                unit="W/s^3"                        />
        <field id="ketrd_ldf"     long_name="ke-trend: lateral   diffusion"                    unit="W/s^3"                        />
+       <!-- KE trend from backscatter -->
+       <field id="ketrd_keb"     long_name="ke-trend: backscatter"                            unit="W/s^3"                        />
+       
        <field id="ketrd_zdf"     long_name="ke-trend: vertical  diffusion"                    unit="W/s^3"                        />
        <field id="ketrd_tau"     long_name="ke-trend: wind stress "                           unit="W/s^3"   grid_ref="grid_T_2D" />
        <field id="ketrd_bfr"     long_name="ke-trend: bottom friction (explicit)"             unit="W/s^3"                        />   
@@ -796,6 +802,9 @@
        <field id="utrd_zad"       long_name="i-trend: vertical  advection"                    unit="m/s^2"                        />
        <field id="utrd_udx"       long_name="i-trend: U.dx[U]"                                unit="m/s^2"                        />
        <field id="utrd_ldf"       long_name="i-trend: lateral   diffusion"                    unit="m/s^2"                        />
+       <!-- U trend from backscatter -->
+       <field id="utrd_keb"       long_name="i-trend: backscatter"                            unit="m/s^2"                        />
+       
        <field id="utrd_zdf"       long_name="i-trend: vertical  diffusion"                    unit="m/s^2"                        />
        <field id="utrd_tau"       long_name="i-trend: wind stress "                           unit="m/s^2"   grid_ref="grid_U_2D" />
        <field id="utrd_bfr"       long_name="i-trend: bottom friction (explicit)"             unit="m/s^2"                        />   
@@ -816,6 +825,9 @@
        <field id="vtrd_zad"       long_name="j-trend: vertical  advection"                    unit="m/s^2"                        />
        <field id="vtrd_vdy"       long_name="i-trend: V.dx[V]"                                unit="m/s^2"                        />
        <field id="vtrd_ldf"       long_name="j-trend: lateral   diffusion"                    unit="m/s^2"                        />
+       <!-- V trend backscatter -->
+       <field id="vtrd_keb"       long_name="j-trend: backscatter"                            unit="m/s^2"                        />
+       
        <field id="vtrd_zdf"       long_name="j-trend: vertical  diffusion"                    unit="m/s^2"                        />
        <field id="vtrd_tau"       long_name="j-trend: wind stress "                           unit="m/s^2"   grid_ref="grid_V_2D" />
        <field id="vtrd_bfr"       long_name="j-trend: bottom friction (explicit)"             unit="m/s^2"                        />   

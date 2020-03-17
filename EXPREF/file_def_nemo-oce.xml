@@ -23,6 +23,11 @@
           <field field_ref="dmp_coef" />
           <field field_ref="sgske"   />
           <field field_ref="sgske_zint" />
+          
+          <field field_ref="ahmt_2d" />
+          <field field_ref="ahmt_3d" />
+          <field field_ref="bhmt_2d" />
+          <field field_ref="bhmt_3d" />
 	</file>
 
 	<file id="file3" name_suffix="_grid_U" description="ocean U grid variables" >

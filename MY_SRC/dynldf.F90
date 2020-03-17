@@ -94,16 +94,22 @@ CONTAINS
       CASE ( np_lap_i )    ;   CALL dyn_ldf_iso( kt )                         ! rotated      laplacian
       CASE ( np_blp   )    ;   CALL dyn_ldf_blp( kt, ub, vb, ua, va    )      ! iso-level bi-laplacian
       !
-      END SELECT
+      END SELECT     
       !
-      IF ( ln_kebs ) CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter 
+      !IF ( ln_kebs ) CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter 
       !
       IF( l_trddyn .OR. ln_sgske ) THEN                        ! save the horizontal diffusive trends for further diagnostics
+!!jk this is the contribution from viscosity
          ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
          ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
+         CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
+         IF ( l_trddyn ) THEN
+            CALL trd_dyn( ztrdu, ztrdv, jpdyn_ldf, kt )
+         END IF
+         ! 
 	 IF ( ln_sgske ) THEN 
 	    ! Sync boundary conditions
-	    CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
+	    !CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
 	    
             ! Calculate dissipated KE
 	    ! Taken from trdken routine
@@ -126,17 +132,36 @@ CONTAINS
                   END DO
                END DO
             END DO
-            
-	    ! Add to sub-grid scale KE budget         
+            !
+            IF ( ln_kebs ) THEN
+               IF( l_trddyn ) THEN
+                  ztrdu(:,:,:) = ua(:,:,:) 
+                  ztrdv(:,:,:) = va(:,:,:) 
+               ENDIF
+               !
+               CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter
+               !
+               IF( l_trddyn ) THEN
+!!jk: this is the contribution from backscatter
+                  ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
+                  ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
+                  CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
+                  IF ( l_trddyn ) THEN
+                     CALL trd_dyn( ztrdu, ztrdv, jpdyn_keb, kt )
+                  END IF
+               ENDIF
+            ENDIF
+            !
+	    ! Add to sub-grid scale KE from this step to the total budget         
 	    sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) 
             
 	    ! Add to output (move to diawri)
             !CALL iom_put( "sgske"     , sgs_ke(:,:,:) )
 	      
          END IF
-         IF ( l_trddyn ) THEN
-            CALL trd_dyn( ztrdu, ztrdv, jpdyn_ldf, kt )
-         END IF
+         !IF ( l_trddyn ) THEN
+         !   CALL trd_dyn( ztrdu, ztrdv, jpdyn_ldf, kt )
+         !END IF
          DEALLOCATE ( ztrdu , ztrdv )         
       ENDIF
       !                                          ! print sum trends (used for debugging)

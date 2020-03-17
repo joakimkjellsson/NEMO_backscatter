@@ -51,6 +51,8 @@ MODULE ldfdyn
    REAL(wp), PUBLIC ::   rn_maxfac             !: Multiplicative factor of theorectical maximum Smagorinsky viscosity
    !                                        ! iso-neutral laplacian (ln_dynldf_lap=ln_dynldf_iso=T)
    REAL(wp), PUBLIC ::   rn_ahm_b              !: lateral laplacian background eddy viscosity  [m2/s]
+   !                                        ! KE backscatter
+   REAL(wp), PUBLIC ::   rn_ckeb = 0.1
 
    !                                    !!* Parameter to control the type of lateral viscous operator
    INTEGER, PARAMETER, PUBLIC ::   np_ERROR  =-10                       !: error in setting the operator
@@ -115,7 +117,7 @@ CONTAINS
          &                 ln_dynldf_lev, ln_dynldf_hor, ln_dynldf_iso,   &   ! acting direction of the operator
          &                 nn_ahm_ijk_t , rn_Uv    , rn_Lv,   rn_ahm_b,   &   ! lateral eddy coefficient
          &                 rn_csmc      , rn_minfac    , rn_maxfac,       &   ! Smagorinsky settings
-         &                 ln_sgske     , ln_kebs                             ! SGS KE (Joakim)
+         &                 ln_sgske     , ln_kebs  , rn_ckeb                  ! SGS KE (Joakim)
       !!----------------------------------------------------------------------
       !
       REWIND( numnam_ref )              ! Namelist namdyn_ldf in reference namelist : Lateral physics
@@ -542,7 +544,7 @@ CONTAINS
           ! where e is the sub-grid scale KE and c is a coffiecient [0,1]
           ! Viscosity is negative, i.e. adding KE to resolved flow
           !
-          zckeb = 0.1 
+          zckeb = rn_ckeb
           DO jk = 1, jpkm1
              !
              DO jj = 2, jpjm1                                ! T-point value
