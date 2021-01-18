@@ -73,11 +73,11 @@ CONTAINS
       IF( ln_timing )   CALL timing_start('dyn_ldf')
       !
       ! Allocate sub-grid scale energy if first step (Joakim)
-      IF( kt == nit000 .AND. ln_sgske ) THEN
-         IF(lwp) WRITE(numout,*)
-         IF(lwp) WRITE(numout,*) 'dyn_ldf : use sub-grid scale kinetic energy reservoir '
-         IF( dyn_ldf_alloc() /= 0 )   CALL ctl_stop('STOP', 'dyn_ldf: failed to allocate arrays')
-      ENDIF
+      !IF( kt == nit000 .AND. ln_sgske ) THEN
+      !   IF(lwp) WRITE(numout,*)
+      !   IF(lwp) WRITE(numout,*) 'dyn_ldf : use sub-grid scale kinetic energy reservoir '
+      !   IF( dyn_ldf_alloc() /= 0 )   CALL ctl_stop('STOP', 'dyn_ldf: failed to allocate arrays')
+      !ENDIF
       !
       IF( l_trddyn .OR. ln_sgske )   THEN                      ! temporary save of momentum trends
          ALLOCATE( ztrdu(jpi,jpj,jpk) , ztrdv(jpi,jpj,jpk) )
@@ -87,7 +87,7 @@ CONTAINS
             ALLOCATE( bu(jpi,jpj,jpk), bv(jpi,jpj,jpk), r1_bt(jpi,jpj,jpk), zke(jpi,jpj,jpk) )    ! inverse of t-box volume
          END IF
       ENDIF
-
+      !
       SELECT CASE ( nldf_dyn )                   ! compute lateral mixing trend and add it to the general trend
       !
       CASE ( np_lap   )    ;   CALL dyn_ldf_lap( kt, ub, vb, ua, va, 1 )      ! iso-level    laplacian
@@ -99,7 +99,7 @@ CONTAINS
       !IF ( ln_kebs ) CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter 
       !
       IF( l_trddyn .OR. ln_sgske ) THEN                        ! save the horizontal diffusive trends for further diagnostics
-!!jk this is the contribution from viscosity
+!!jk: this is the contribution from viscosity
          ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
          ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
          CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
@@ -107,57 +107,60 @@ CONTAINS
             CALL trd_dyn( ztrdu, ztrdv, jpdyn_ldf, kt )
          END IF
          ! 
-	 IF ( ln_sgske ) THEN 
-	    ! Sync boundary conditions
-	    !CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
-	    
-            ! Calculate dissipated KE
-	    ! Taken from trdken routine
+	 IF ( ln_sgske ) THEN 	    
+!!jk: Calculate dissipated KE. Taken from trdken routine
             DO jk = 1, jpkm1
                bu   (:,:,jk) =    e1e2u(:,:) * e3u_n(:,:,jk)
                bv   (:,:,jk) =    e1e2v(:,:) * e3v_n(:,:,jk)
                r1_bt(:,:,jk) = r1_e1e2t(:,:) / e3t_n(:,:,jk) * tmask(:,:,jk)
             END DO
             !
-            zke(:,:,jpk) = 0._wp
-            zke(1,:, : ) = 0._wp
-            zke(:,1, : ) = 0._wp
+            zke(:,:,:) = 0._wp
             DO jk = 1, jpkm1
                DO jj = 2, jpj
                   DO ji = 2, jpi
-                     zke(ji,jj,jk) = 0.5_wp * rau0 *( un(ji  ,jj,jk) * ztrdu(ji  ,jj,jk) * bu(ji  ,jj,jk)  &
-                     &                              + un(ji-1,jj,jk) * ztrdu(ji-1,jj,jk) * bu(ji-1,jj,jk)  &
-                     &                              + vn(ji,jj  ,jk) * ztrdv(ji,jj  ,jk) * bv(ji,jj  ,jk)  &
-                     &                              + vn(ji,jj-1,jk) * ztrdv(ji,jj-1,jk) * bv(ji,jj-1,jk)  ) * r1_bt(ji,jj,jk)
+!!jk: KE tendency from ldf dissipation [m2/s3]
+                     zke(ji,jj,jk) = 0.5_wp * ( un(ji  ,jj,jk) * ztrdu(ji  ,jj,jk) * bu(ji  ,jj,jk)  &
+                     &                        + un(ji-1,jj,jk) * ztrdu(ji-1,jj,jk) * bu(ji-1,jj,jk)  &
+                     &                        + vn(ji,jj  ,jk) * ztrdv(ji,jj  ,jk) * bv(ji,jj  ,jk)  &
+                     &                        + vn(ji,jj-1,jk) * ztrdv(ji,jj-1,jk) * bv(ji,jj-1,jk)  ) * r1_bt(ji,jj,jk)
                   END DO
                END DO
             END DO
             !
-            IF ( ln_kebs ) THEN
-               IF( l_trddyn ) THEN
-                  ztrdu(:,:,:) = ua(:,:,:) 
-                  ztrdv(:,:,:) = va(:,:,:) 
-               ENDIF
-               !
-               CALL dyn_ldf_keb( kt, ub, vb, ua, va ) ! KE backscatter
-               !
-               IF( l_trddyn ) THEN
-!!jk: this is the contribution from backscatter
-                  ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
-                  ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
-                  CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
-                  IF ( l_trddyn ) THEN
-                     CALL trd_dyn( ztrdu, ztrdv, jpdyn_keb, kt )
-                  END IF
-               ENDIF
-            ENDIF
+!!jk: multiply KE tendency by rn_rdt. Not 2*rn_rdt
+            sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) * rn_rdt  !! [m2/s2]
             !
-	    ! Add to sub-grid scale KE from this step to the total budget         
-	    sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) 
-            
-	    ! Add to output (move to diawri)
-            !CALL iom_put( "sgske"     , sgs_ke(:,:,:) )
-	      
+            IF ( ln_kebs ) THEN               
+               ztrdu(:,:,:) = ua(:,:,:) 
+               ztrdv(:,:,:) = va(:,:,:) 
+               !
+               CALL dyn_ldf_keb( kt, ub, vb, ua, va, 10 ) ! KE backscatter
+               !               
+!!jk: this is the contribution from backscatter
+               ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
+               ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
+               CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
+               !
+               IF ( l_trddyn ) THEN
+                  CALL trd_dyn( ztrdu, ztrdv, jpdyn_keb, kt )
+               END IF
+               !
+               DO jk = 1, jpkm1
+                  DO jj = 2, jpj
+                     DO ji = 2, jpi
+                        zke(ji,jj,jk) = 0.5_wp * ( un(ji  ,jj,jk) * ztrdu(ji  ,jj,jk) * bu(ji  ,jj,jk)  &
+                        &                        + un(ji-1,jj,jk) * ztrdu(ji-1,jj,jk) * bu(ji-1,jj,jk)  &
+                        &                        + vn(ji,jj  ,jk) * ztrdv(ji,jj  ,jk) * bv(ji,jj  ,jk)  &
+                        &                        + vn(ji,jj-1,jk) * ztrdv(ji,jj-1,jk) * bv(ji,jj-1,jk)  ) * r1_bt(ji,jj,jk)
+                     END DO
+                  END DO
+               END DO
+!!jk: Now we take the KE from the sub-grid scale budget
+!!jk: Again multiply by rn_rdt
+               sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) * rn_rdt
+            ENDIF
+	    !  
          END IF
          !IF ( l_trddyn ) THEN
          !   CALL trd_dyn( ztrdu, ztrdv, jpdyn_ldf, kt )

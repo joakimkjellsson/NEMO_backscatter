@@ -482,6 +482,8 @@
       <!-- f-eddy viscosity coefficients (ldfdyn) -->
       <field id="ahmf_2d"      long_name=" surface f-eddy viscosity coefficient"   unit="m2/s or m4/s" />
       <field id="ahmf_3d"      long_name=" 3D      f-eddy viscosity coefficient"   unit="m2/s or m4/s"                           grid_ref="grid_T_3D"/>
+      <field id="bhmf_2d"      long_name=" surface backscatter viscosity coefficient"  unit="m2/s or m4/s" />
+      <field id="bhmf_3d"      long_name=" 3D      backscatter viscosity coefficient"  unit="m2/s or m4/s"   grid_ref="grid_T_3D"/>
 
       <field_group id="scalar"  grid_ref="grid_T_2D"  >
       	 <!-- Need to have a salinity reference climatological file : sali_ref_clim_monthly -->

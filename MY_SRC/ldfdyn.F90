@@ -254,6 +254,13 @@ CONTAINS
          ahmt(:,:,:) = 0._wp                       ! init to 0 needed 
          ahmf(:,:,:) = 0._wp
          !
+         IF ( ln_sgske ) THEN
+            ! Allocate sub-grid scale KE
+            ALLOCATE( sgs_ke(jpi,jpj,jpk), STAT=ierr )
+            IF( ierr /= 0 )   CALL ctl_stop( 'STOP', 'ldf_dyn_init: failed to allocate sgs ke array')
+            !
+            sgs_ke(:,:,:) = 0._wp
+         ENDIF
          !                                         ! value of lap/blp eddy mixing coef.
          IF(     ln_dynldf_lap ) THEN   ;   zUfac = r1_2 *rn_Uv   ;   inn = 1   ;   cl_Units = ' m2/s'   !   laplacian
          ELSEIF( ln_dynldf_blp ) THEN   ;   zUfac = r1_12*rn_Uv   ;   inn = 3   ;   cl_Units = ' m4/s'   ! bilaplacian
@@ -342,16 +349,20 @@ CONTAINS
                ahmf(:,:,1:jpkm1) = SQRT( ahmf(:,:,1:jpkm1) ) * fmask(:,:,1:jpkm1)
             ENDIF
          ENDIF
-         !
+         !        
          IF ( ln_kebs ) THEN
             IF(lwp) WRITE(numout,*) '   ==>>>   KE backscatter with Laplacian anti-viscosity '
             IF(lwp) WRITE(numout,*) '           Backscatter viscosity is c * dx * sqrt( max(2e,0) )'
             !
-            !l_ldfdyn_time = .TRUE.     ! will be calculated by call to ldf_dyn routine in step.F90
+            l_ldfdyn_time = .TRUE.     ! will be calculated by call to ldf_dyn routine in step.F90
             !
             !                          ! allocate arrays used in ldf_dyn.
             !ALLOCATE( dtensq(jpi,jpj,jpk) , dshesq(jpi,jpj,jpk) , esqt(jpi,jpj) , esqf(jpi,jpj) , STAT=ierr )
+            !ALLOCATE( sgs_ke(jpi,jpj,jpk) )
             ALLOCATE( bhmt(jpi,jpj,jpk), bhmf(jpi,jpj,jpk), esqt(jpi,jpj) , esqf(jpi,jpj), STAT=ierr )
+            bhmt(:,:,:) = 0._wp
+            bhmf(:,:,:) = 0._wp
+            !sgs_ke(:,:,:) = 0._wp
             IF( ierr /= 0 )   CALL ctl_stop( 'STOP', 'ldf_dyn_init: failed to allocate backscatter arrays')
             !
             DO jj = 1, jpj             ! Set local gridscale values
@@ -454,7 +465,7 @@ CONTAINS
             DO jk = 1, jpkm1
                !
                DO jj = 2, jpjm1
-                  DO ji = 2, jpim1
+                  DO ji = fs_2, fs_jpim1
                      zdb =   ( ub(ji,jj,jk) * r1_e2u(ji,jj) - ub(ji-1,jj,jk) * r1_e2u(ji-1,jj) ) * r1_e1t(ji,jj) * e2t(ji,jj)  &
                         &  - ( vb(ji,jj,jk) * r1_e1v(ji,jj) - vb(ji,jj-1,jk) * r1_e1v(ji,jj-1) ) * r1_e2t(ji,jj) * e1t(ji,jj)
                      dtensq(ji,jj,jk) = zdb * zdb * tmask(ji,jj,jk)
@@ -462,7 +473,7 @@ CONTAINS
                END DO
                !
                DO jj = 1, jpjm1
-                  DO ji = 1, jpim1
+                  DO ji = fs_2, fs_jpim1
                      zdb =   ( ub(ji,jj+1,jk) * r1_e1u(ji,jj+1) - ub(ji,jj,jk) * r1_e1u(ji,jj) ) * r1_e2f(ji,jj) * e1f(ji,jj)  &
                         &  + ( vb(ji+1,jj,jk) * r1_e2v(ji+1,jj) - vb(ji,jj,jk) * r1_e2v(ji,jj) ) * r1_e1f(ji,jj) * e2f(ji,jj)
                      dshesq(ji,jj,jk) = zdb * zdb * fmask(ji,jj,jk)
@@ -533,7 +544,7 @@ CONTAINS
          CALL lbc_lnk_multi( 'ldfdyn', ahmt, 'T', 1. , ahmf, 'F', 1. )
          !
       END SELECT
-      !
+      !      
       CALL iom_put( "ahmt_2d", ahmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
       CALL iom_put( "ahmf_2d", ahmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
       CALL iom_put( "ahmt_3d", ahmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
@@ -548,35 +559,39 @@ CONTAINS
           DO jk = 1, jpkm1
              !
              DO jj = 2, jpjm1                                ! T-point value
-                DO ji = fs_2, fs_jpim1
+                DO ji = 2, jpim1                   
                    !   
-                   zdelta         = zcmsmag * esqt(ji,jj)                                        ! L^2 * (C_smag/pi)^2
-                   bhmt(ji,jj,jk) = -1.0_wp * zckeb * esqt(ji,jj) * sqrt( max( 2.0_wp * sgs_ke(ji,jj,jk), 0._wp ) ) 
+                   bhmt(ji,jj,jk) = -1.0_wp * zckeb * esqt(ji,jj) * SQRT( MAX( 2.0_wp * sgs_ke(ji,jj,jk), 0._wp ) ) 
                    ! Impose upper limit
-                   !bhmt(ji,jj,jk) = MIN( bhmt(ji,jj,jk), 0._wp )
+                   !bhmt(ji,jj,jk) = MAX( bhmt(ji,jj,jk), -300._wp)
                    !
                 END DO
-             END DO
+             END DO                        
              !
-             DO jj = 1, jpjm1                                ! F-point value
-                DO ji = 1, fs_jpim1
+             DO jj = 2, jpjm1                                ! F-point value             
+                DO ji = 2, jpim1
                    !
                    zsgske_ij  = 0.25_wp * ( sgs_ke(ji,jj,jk) + sgs_ke(ji+1,jj,jk) + sgs_ke(ji,jj+1,jk) + sgs_ke(ji+1,jj+1,jk) )
                    !
-                   bhmf(ji,jj,jk) = -1.0_wp * zckeb * esqf(ji,jj) * sqrt( max( 2.0_wp * zsgske_ij, 0._wp ) )
+                   bhmf(ji,jj,jk) = -1.0_wp * zckeb * esqf(ji,jj) * SQRT( MAX( 2.0_wp * zsgske_ij, 0._wp ) )
                    !
+                   !bhmf(ji,jj,jk) = MAX( bhmf(ji,jj,jk), -300._wp ) 
                 END DO
              END DO
              !
           END DO
           !
+          bhmt(:,:,:) = bhmt(:,:,:) * tmask(:,:,:)
+          bhmf(:,:,:) = bhmf(:,:,:) * fmask(:,:,:)
           CALL lbc_lnk_multi( 'ldfdyn', bhmt, 'T', 1. , bhmf, 'F', 1. )
           !
           ! Put 
-          CALL iom_put( "bhmt_2d", bhmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
-          CALL iom_put( "bhmf_2d", bhmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
-          CALL iom_put( "bhmt_3d", bhmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
-          CALL iom_put( "bhmf_3d", bhmf(:,:,:) )   ! 3D      v-eddy diffusivity coeff.
+          IF ( iom_use("bhmt_2d") ) CALL iom_put( "bhmt_2d", bhmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
+          IF ( iom_use("bhmf_2d") ) CALL iom_put( "bhmf_2d", bhmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
+          IF ( iom_use("bhmt_3d") ) CALL iom_put( "bhmt_3d", bhmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
+          IF ( iom_use("bhmf_3d") ) CALL iom_put( "bhmf_3d", bhmf(:,:,:) )   ! 3D      v-eddy diffusivity coeff.
+          !bhmt(:,:,:) = 1.0 * tmask(:,:,:)
+          !bhmf(:,:,:) = 1.0 * fmask(:,:,:)
       ENDIF
       !
       IF( ln_timing )   CALL timing_stop('ldf_dyn')

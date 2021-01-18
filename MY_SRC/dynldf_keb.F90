@@ -32,7 +32,7 @@ MODULE dynldf_keb
    !!----------------------------------------------------------------------
 CONTAINS
 
-   SUBROUTINE dyn_ldf_keb( kt, pub, pvb, pua, pva )
+   SUBROUTINE dyn_ldf_keb( kt, pub, pvb, pua, pva, kpass )
       !!----------------------------------------------------------------------
       !!                     ***  ROUTINE dyn_ldf_lap  ***
       !!                       
@@ -45,13 +45,15 @@ CONTAINS
       !! ** Action : - pua, pva increased by the harmonic operator applied on pub, pvb.
       !!----------------------------------------------------------------------
       INTEGER                         , INTENT(in   ) ::   kt         ! ocean time-step index
+      INTEGER                         , INTENT(in   ) ::   kpass      ! number of times we smooth
       REAL(wp), DIMENSION(jpi,jpj,jpk), INTENT(in   ) ::   pub, pvb   ! before velocity   [m/s]
       REAL(wp), DIMENSION(jpi,jpj,jpk), INTENT(inout) ::   pua, pva   ! velocity trend    [m/s2]
       !
-      INTEGER  ::   ji, jj, jk   ! dummy loop indices
+      INTEGER  ::   ji, jj, jk,jp ! dummy loop indices
       REAL(wp) ::   zsign        ! local scalars
-      REAL(wp) ::   zua, zva     ! local scalars
+      REAL(wp) ::   zua, zva     ! local scalars      
       REAL(wp), DIMENSION(jpi,jpj) ::   zcur, zdiv
+      REAL(wp) ::   rn_wgt, rn_wgt_c, rn_wgt_n ! local weights 
       !!----------------------------------------------------------------------
       !
       IF( kt == nit000 .AND. lwp ) THEN
@@ -97,6 +99,30 @@ CONTAINS
          !                                             ! ===============
       END DO                                           !   End of slab
       !                                                ! ===============
+      !
+      ! Smooth the backscatter tendency
+!!jk: this needs to be energy conservative      
+      IF ( kpass > 0 ) THEN
+         DO jp = 1, kpass 
+            !
+            rn_wgt_c = 1._wp
+            rn_wgt_n = 1._wp
+            rn_wgt   = ( 4._wp * rn_wgt_n + rn_wgt_c )
+            !
+            pua(2:jpim1, 2:jpjm1, 1:jpkm1) = rn_wgt * ( rn_wgt_n * pua(2:jpim1,   1:jpjm1-1, 1:jpkm1) & 
+                                                      + rn_wgt_n * pua(2:jpim1,   3:jpj,     1:jpkm1) & 
+                                                      + rn_wgt_n * pua(1:jpim1-1, 2:jpjm1,   1:jpkm1) & 
+                                                      + rn_wgt_n * pua(3:jpi,     2:jpjm1,   1:jpkm1) & 
+                                                      + rn_wgt_c * pua(2:jpim1,   2:jpjm1,   1:jpkm1) )
+            !
+            pva(2:jpim1, 2:jpjm1, 1:jpkm1) = rn_wgt * ( rn_wgt_n * pva(2:jpim1,   1:jpjm1-1, 1:jpkm1) &
+                                                      + rn_wgt_n * pva(2:jpim1,   3:jpj,     1:jpkm1) &
+                                                      + rn_wgt_n * pva(1:jpim1-1, 2:jpjm1,   1:jpkm1) & 
+                                                      + rn_wgt_n * pva(3:jpi,     2:jpjm1,   1:jpkm1) & 
+                                                      + rn_wgt_c * pva(2:jpim1,   2:jpjm1,   1:jpkm1) ) 
+            !
+         END DO
+      ENDIF
       !
    END SUBROUTINE dyn_ldf_keb
    !!======================================================================
