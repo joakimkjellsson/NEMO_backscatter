@@ -140,12 +140,26 @@ CONTAINS
 !!jk: this is the contribution from backscatter
                ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
                ztrdv(:,:,:) = va(:,:,:) - ztrdv(:,:,:)
-               CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )
+               CALL lbc_lnk_multi( 'dynldf', ztrdu, 'U', -1. , ztrdv, 'V', -1. )              
+               !
+               !DO jk = 1, jpkm1
+               !   DO jj = 2, jpj
+               !       DO ji = 2, jpi
+               !          IF ( abs(ua(ji,jj,jk)) > 1e-3 .or. isnan(ua(ji,jj,jk)) ) THEN
+               !             PRINT*," JTK: ua: ",ua(ji,jj,jk)
+               !          ENDIF
+               !          IF ( abs(va(ji,jj,jk)) > 1e-3 .or. isnan(va(ji,jj,jk)) ) THEN
+               !             PRINT*," JTK: va: ",va(ji,jj,jk)
+               !          ENDIF
+               !       END DO
+               !   END DO
+               !END DO
                !
                IF ( l_trddyn ) THEN
                   CALL trd_dyn( ztrdu, ztrdv, jpdyn_keb, kt )
                END IF
                !
+               zke(:,:,:) = 0._wp
                DO jk = 1, jpkm1
                   DO jj = 2, jpj
                      DO ji = 2, jpi

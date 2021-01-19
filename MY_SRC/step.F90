@@ -153,6 +153,8 @@ CONTAINS
       !                                                                   ! eddy diffusivity coeff.
       IF( l_ldftra_time .OR. l_ldfeiv_time )   CALL ldf_tra( kstp )       !       and/or eiv coeff.
       IF( l_ldfdyn_time                    )   CALL ldf_dyn( kstp )       ! eddy viscosity coeff. 
+      !
+      IF( ln_kebs )                            CALL ldf_keb( kstp )       ! KE backscatter 
 
       !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
       !  Ocean dynamics : hdiv, ssh, e3, u, v, w

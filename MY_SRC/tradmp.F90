@@ -204,7 +204,7 @@ CONTAINS
          !
       END SELECT
       !
-      PRINT*,' Done in tradmp '
+      !PRINT*,' Done in tradmp '
       !
       IF( l_trdtra )   THEN       ! trend diagnostic
          ztrdts(:,:,:,:) = tsa(:,:,:,:) - ztrdts(:,:,:,:)
