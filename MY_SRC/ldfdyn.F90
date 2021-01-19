@@ -592,7 +592,7 @@ CONTAINS
           ! Viscosity is negative, i.e. adding KE to resolved flow
           !
           zckeb = rn_ckeb
-          PRINT*," JTK: ldf_keb with rn_ckeb ",rn_ckeb
+          !PRINT*," JTK: ldf_keb with rn_ckeb ",rn_ckeb
           DO jk = 1, jpkm1
              !
              DO jj = 2, jpjm1                                ! T-point value
@@ -630,7 +630,7 @@ CONTAINS
           !
           ! ahm is only written to file in ldf_dyn, which is only called if l_ldfdyn_time is true 
           IF( .NOT.l_ldfdyn_time ) THEN
-             PRINT*," JTK: iom_put ahmt_2d", ahmt(3,3,1)
+             !PRINT*," JTK: iom_put ahmt_2d", ahmt(3,3,1)
              CALL iom_put( "ahmt_2d", ahmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
              CALL iom_put( "ahmf_2d", ahmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
              CALL iom_put( "ahmt_3d", ahmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.

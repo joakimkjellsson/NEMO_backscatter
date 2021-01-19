@@ -235,7 +235,7 @@ CONTAINS
       !!----------------------------------------------------------------------
       !
       IF ( ln_usrdmp ) THEN
-         PRINT*,' init damping '
+         !PRINT*,' init damping '
          !RETURN
       ENDIF
       REWIND( numnam_ref )   ! Namelist namtra_dmp in reference namelist : T & S relaxation

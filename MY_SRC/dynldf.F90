@@ -130,12 +130,13 @@ CONTAINS
             !
 !!jk: multiply KE tendency by rn_rdt. Not 2*rn_rdt
             sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) * rn_rdt  !! [m2/s2]
+            CALL lbc_lnk_multi( 'dynldf', sgs_ke, 'T', -1.) 
             !
             IF ( ln_kebs ) THEN               
                ztrdu(:,:,:) = ua(:,:,:) 
                ztrdv(:,:,:) = va(:,:,:) 
                !
-               CALL dyn_ldf_keb( kt, ub, vb, ua, va, 10 ) ! KE backscatter
+               CALL dyn_ldf_keb( kt, ub, vb, ua, va, 4 ) ! KE backscatter
                !               
 !!jk: this is the contribution from backscatter
                ztrdu(:,:,:) = ua(:,:,:) - ztrdu(:,:,:)
@@ -173,6 +174,7 @@ CONTAINS
 !!jk: Now we take the KE from the sub-grid scale budget
 !!jk: Again multiply by rn_rdt
                sgs_ke(:,:,:) = sgs_ke(:,:,:) - zke(:,:,:) * rn_rdt
+               CALL lbc_lnk_multi( 'dynldf', sgs_ke, 'T', -1.)
             ENDIF
 	    !  
          END IF
