@@ -30,6 +30,7 @@ MODULE ldfdyn
 
    PUBLIC   ldf_dyn_init   ! called by nemogcm.F90
    PUBLIC   ldf_dyn        ! called by step.F90
+   PUBLIC   ldf_keb        ! called by step.F90
 
    !                                    !!* Namelist namdyn_ldf : lateral mixing on momentum *
    LOGICAL , PUBLIC ::   ln_dynldf_OFF   !: No operator (i.e. no explicit diffusion)
@@ -53,6 +54,7 @@ MODULE ldfdyn
    REAL(wp), PUBLIC ::   rn_ahm_b              !: lateral laplacian background eddy viscosity  [m2/s]
    !                                        ! KE backscatter
    REAL(wp), PUBLIC ::   rn_ckeb = 0.1
+   REAL(wp), PUBLIC ::   rn_bhm_0 = -1000._wp ! limiter for backsc visc 
 
    !                                    !!* Parameter to control the type of lateral viscous operator
    INTEGER, PARAMETER, PUBLIC ::   np_ERROR  =-10                       !: error in setting the operator
@@ -117,7 +119,7 @@ CONTAINS
          &                 ln_dynldf_lev, ln_dynldf_hor, ln_dynldf_iso,   &   ! acting direction of the operator
          &                 nn_ahm_ijk_t , rn_Uv    , rn_Lv,   rn_ahm_b,   &   ! lateral eddy coefficient
          &                 rn_csmc      , rn_minfac    , rn_maxfac,       &   ! Smagorinsky settings
-         &                 ln_sgske     , ln_kebs  , rn_ckeb                  ! SGS KE (Joakim)
+         &                 ln_sgske     , ln_kebs  , rn_ckeb, rn_bhm_0        ! SGS KE (Joakim)
       !!----------------------------------------------------------------------
       !
       REWIND( numnam_ref )              ! Namelist namdyn_ldf in reference namelist : Lateral physics
@@ -160,6 +162,7 @@ CONTAINS
 	 WRITE(numout,*) '      Sub-grid scale kinetic energy : '
          WRITE(numout,*) '         reservoir                             ln_sgske = ', ln_sgske 
          WRITE(numout,*) '         backscatter                           ln_kebs  = ', ln_kebs
+         WRITE(numout,*) '         backscatter coeff. (non-dim)          rn_ckeb  = ', rn_ckeb
       ENDIF
 
       !
@@ -255,6 +258,7 @@ CONTAINS
          ahmf(:,:,:) = 0._wp
          !
          IF ( ln_sgske ) THEN
+!!jk: this should not be in an IF ln_dynldf_OFF statement. 
             ! Allocate sub-grid scale KE
             ALLOCATE( sgs_ke(jpi,jpj,jpk), STAT=ierr )
             IF( ierr /= 0 )   CALL ctl_stop( 'STOP', 'ldf_dyn_init: failed to allocate sgs ke array')
@@ -348,6 +352,7 @@ CONTAINS
                ahmt(:,:,1:jpkm1) = SQRT( ahmt(:,:,1:jpkm1) ) * tmask(:,:,1:jpkm1)
                ahmf(:,:,1:jpkm1) = SQRT( ahmf(:,:,1:jpkm1) ) * fmask(:,:,1:jpkm1)
             ENDIF
+            !
          ENDIF
          !        
          IF ( ln_kebs ) THEN
@@ -544,11 +549,42 @@ CONTAINS
          CALL lbc_lnk_multi( 'ldfdyn', ahmt, 'T', 1. , ahmf, 'F', 1. )
          !
       END SELECT
-      !      
+      !            
       CALL iom_put( "ahmt_2d", ahmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
       CALL iom_put( "ahmf_2d", ahmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
       CALL iom_put( "ahmt_3d", ahmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
       CALL iom_put( "ahmf_3d", ahmf(:,:,:) )   ! 3D      v-eddy diffusivity coeff.
+      !
+      IF( ln_timing )   CALL timing_stop('ldf_dyn')
+      !
+   END SUBROUTINE ldf_dyn
+   
+   SUBROUTINE ldf_keb( kt )
+      !!----------------------------------------------------------------------
+      !!                  ***  ROUTINE ldf_dyn  ***
+      !!
+      !! ** Purpose :   update at kt the momentum lateral mixing coeff. (ahmt and ahmf)
+      !!
+      !! ** Method  :   time varying eddy viscosity coefficients:
+      !!
+      !!    nn_ahm_ijk_t = 31    ahmt, ahmf = F(i,j,k,t) = F(local velocity)
+      !!                         ( |u|e /12  or  |u|e^3/12 for laplacian or bilaplacian operator )
+      !!
+      !!    nn_ahm_ijk_t = 32    ahmt, ahmf = F(i,j,k,t) = F(local deformation rate and gridscale) (D and L) (Smagorinsky)
+      !!                         ( L^2|D|    or  L^4|D|/8  for laplacian or bilaplacian operator )
+      !!
+      !! ** note    :    in BLP cases the sqrt of the eddy coef is returned, since bilaplacian is en re-entrant laplacian
+      !! ** action  :    ahmt, ahmf   updated at each time step
+      !!----------------------------------------------------------------------
+      INTEGER, INTENT(in) ::   kt   ! time step index
+      !
+      INTEGER  ::   ji, jj, jk   ! dummy loop indices
+      REAL(wp) ::   zu2pv2_ij_p1, zu2pv2_ij, zu2pv2_ij_m1, zemax   ! local scalar (option 31)
+      REAL(wp) ::   zcmsmag, zstabf_lo, zstabf_up, zdelta, zdb     ! local scalar (option 32)
+      REAL(wp) ::   zckeb, zsgske_ij                               ! local scalar (ln_kebs = T)
+      !!----------------------------------------------------------------------
+      !
+      IF( ln_timing )   CALL timing_start('ldf_keb')
       !
       IF ( ln_kebs ) THEN
           ! Backscatter viscosity set by -c * gridscale * sqrt( max(2e,0) )
@@ -556,26 +592,33 @@ CONTAINS
           ! Viscosity is negative, i.e. adding KE to resolved flow
           !
           zckeb = rn_ckeb
+          PRINT*," JTK: ldf_keb with rn_ckeb ",rn_ckeb
           DO jk = 1, jpkm1
              !
              DO jj = 2, jpjm1                                ! T-point value
-                DO ji = 2, jpim1                   
-                   !   
-                   bhmt(ji,jj,jk) = -1.0_wp * zckeb * esqt(ji,jj) * SQRT( MAX( 2.0_wp * sgs_ke(ji,jj,jk), 0._wp ) ) 
+                DO ji = 2, jpim1
+                   !
+                   bhmt(ji,jj,jk) = -1.0_wp * zckeb * esqt(ji,jj) * SQRT( MAX( 2.0_wp * sgs_ke(ji,jj,jk), 0._wp ) )
+                   IF (bhmt(ji,jj,jk) > 0.) THEN
+                      PRINT*," Warning: bhmt > 0 ",bhmt(ji,jj,jk)
+                   END IF
                    ! Impose upper limit
-                   !bhmt(ji,jj,jk) = MAX( bhmt(ji,jj,jk), -300._wp)
+                   bhmt(ji,jj,jk) = MAX( bhmt(ji,jj,jk), rn_bhm_0 )
                    !
                 END DO
-             END DO                        
+             END DO
              !
-             DO jj = 2, jpjm1                                ! F-point value             
+             DO jj = 2, jpjm1                                ! F-point value
                 DO ji = 2, jpim1
                    !
                    zsgske_ij  = 0.25_wp * ( sgs_ke(ji,jj,jk) + sgs_ke(ji+1,jj,jk) + sgs_ke(ji,jj+1,jk) + sgs_ke(ji+1,jj+1,jk) )
                    !
                    bhmf(ji,jj,jk) = -1.0_wp * zckeb * esqf(ji,jj) * SQRT( MAX( 2.0_wp * zsgske_ij, 0._wp ) )
                    !
-                   !bhmf(ji,jj,jk) = MAX( bhmf(ji,jj,jk), -300._wp ) 
+                   IF (bhmf(ji,jj,jk) > 0.) THEN
+                      PRINT*," Warning: bhmf > 0 ",bhmf(ji,jj,jk)
+                   END IF
+                   bhmf(ji,jj,jk) = MAX( bhmf(ji,jj,jk), rn_bhm_0 )
                 END DO
              END DO
              !
@@ -585,7 +628,16 @@ CONTAINS
           bhmf(:,:,:) = bhmf(:,:,:) * fmask(:,:,:)
           CALL lbc_lnk_multi( 'ldfdyn', bhmt, 'T', 1. , bhmf, 'F', 1. )
           !
-          ! Put 
+          ! ahm is only written to file in ldf_dyn, which is only called if l_ldfdyn_time is true 
+          IF( .NOT.l_ldfdyn_time ) THEN
+             PRINT*," JTK: iom_put ahmt_2d", ahmt(3,3,1)
+             CALL iom_put( "ahmt_2d", ahmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
+             CALL iom_put( "ahmf_2d", ahmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
+             CALL iom_put( "ahmt_3d", ahmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
+             CALL iom_put( "ahmf_3d", ahmf(:,:,:) )   ! 3D      v-eddy diffusivity coeff. 
+          END IF
+          !
+          ! Put
           IF ( iom_use("bhmt_2d") ) CALL iom_put( "bhmt_2d", bhmt(:,:,1) )   ! surface u-eddy diffusivity coeff.
           IF ( iom_use("bhmf_2d") ) CALL iom_put( "bhmf_2d", bhmf(:,:,1) )   ! surface v-eddy diffusivity coeff.
           IF ( iom_use("bhmt_3d") ) CALL iom_put( "bhmt_3d", bhmt(:,:,:) )   ! 3D      u-eddy diffusivity coeff.
@@ -596,7 +648,6 @@ CONTAINS
       !
       IF( ln_timing )   CALL timing_stop('ldf_dyn')
       !
-   END SUBROUTINE ldf_dyn
-
+   END SUBROUTINE ldf_keb
    !!======================================================================
 END MODULE ldfdyn
